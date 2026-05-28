@@ -1,0 +1,86 @@
+@Component
+script Camera extends Component
+
+	@HideFromInspector
+	property boolean IsDragging = false
+
+	@HideFromInspector
+	property any LastTouchPos = FastVector2(0, 0)
+
+	@HideFromInspector
+	property any CurrentTouchPos = FastVector2(0, 0)
+
+	@HideFromInspector
+	property any TargetPos = FastVector2(0, 0)
+
+	@HideFromInspector
+	property any Velocity = FastVector2(0, 0)
+
+	property number Sensitivity = 0.01
+
+	property number Friction = 8
+
+	property number FollowSpeed = 12
+
+	@HideFromInspector
+	property any MinV = FastVector2(-20, -10)
+
+	@HideFromInspector
+	property any MaxV = FastVector2(20, 10)
+
+	@ExecSpace("ClientOnly")
+	method void OnBeginPlay()
+		        local pos = self.Entity.TransformComponent.Position
+		
+		        self.TargetPos = FastVector2(pos.x, pos.y)
+		        self.Velocity = FastVector2(0, 0)
+		        self.IsDragging = false
+	end
+
+	@ExecSpace("ClientOnly")
+	method void OnUpdate(number delta)
+		        if self.IsDragging then
+		            self:UpdateDrag(delta)
+		        else
+		            self:UpdateInertia(delta)
+		        end
+		
+		        for i = 1, 2 do
+		            self.TargetPos[i] = math.clamp(self.TargetPos[i], self.MinV[i], self.MaxV[i])
+		        end
+		        self.Entity.TransformComponent.Position = FastVector3(self.TargetPos[1], self.TargetPos[2], 0)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateDrag(number delta)
+		        local diff = _UILogic:ScreenToWorldPosition(self.LastTouchPos) - _UILogic:ScreenToWorldPosition(self.CurrentTouchPos)
+		        self.TargetPos += diff
+		        self.Velocity = self.Velocity / 2 + diff / (delta * 2)
+	end
+
+	@ExecSpace("ClientOnly")
+	method void UpdateInertia(number delta)
+		        self.TargetPos += self.Velocity * delta
+		        self.Velocity *= math.exp(-self.Friction * delta)
+	end
+
+	@EventSender("Service", "InputService")
+	handler HandleScreenTouchEvent(ScreenTouchEvent event)
+		        self.IsDragging = true
+		        self.LastTouchPos = FastVector2(event.TouchPoint)
+		        self.CurrentTouchPos = self.LastTouchPos
+		        self.Velocity = FastVector2(0, 0)
+	end
+
+	@EventSender("Service", "InputService")
+	handler HandleScreenTouchHoldEvent(ScreenTouchHoldEvent event)
+		        self.LastTouchPos = self.CurrentTouchPos
+		        self.CurrentTouchPos = FastVector2(event.TouchPoint)
+	end
+
+	@EventSender("Service", "InputService")
+	handler HandleScreenTouchReleaseEvent(ScreenTouchReleaseEvent event)
+		        self.IsDragging = false
+	end
+
+end
